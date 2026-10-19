@@ -1,0 +1,865 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Regulatory network — Klebsiella pneumoniae</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.28.1/cytoscape.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+  :root{
+    --bg:#0a111e; --rail:#0f1a2c; --rail2:#132339; --line:#1e3350;
+    --ink:#e8eef7; --dim:#8ea3c0; --faint:#5a6f8f;
+    --master:#c084fc; --inter:#38bdf8; --target:#5b6b86;
+    --hub:#f5a524; --focus:#f472b6;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
+    font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    font-size:14px;overflow:hidden}
+  .mono{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace}
+  #app{display:grid;grid-template-columns:308px 1fr;height:100%}
+
+  #rail{background:var(--rail);border-right:1px solid var(--line);
+    display:flex;flex-direction:column;min-height:0}
+  .brand{padding:16px 18px 13px;border-bottom:1px solid var(--line)}
+  .brand h1{margin:0;font-size:15px;font-weight:650;letter-spacing:.2px}
+  .brand .sub{margin-top:4px;color:var(--dim);font-size:11.5px;line-height:1.45}
+  .scroll{overflow-y:auto;padding:15px 18px;flex:1;min-height:0}
+  .grp{margin-bottom:18px}
+  .grp>label{display:block;font-size:10.5px;text-transform:uppercase;
+    letter-spacing:1.4px;color:var(--faint);margin-bottom:8px;font-weight:600}
+  input.f{width:100%;background:var(--rail2);border:1px solid var(--line);
+    color:var(--ink);border-radius:7px;padding:8px 10px;font-size:13px}
+  input.f:focus{outline:none;border-color:var(--inter)}
+  select.f{appearance:none;-webkit-appearance:none}
+  select.f option{background:var(--rail2);color:var(--ink)}
+  #glist{margin-top:8px;max-height:190px;overflow-y:auto;border:1px solid var(--line);
+    border-radius:8px;background:var(--rail2)}
+  #glist .gi{padding:7px 10px;cursor:pointer;font-size:12px;border-bottom:1px solid var(--line);
+    display:flex;justify-content:space-between;gap:8px}
+  #glist .gi:last-child{border-bottom:none}
+  #glist .gi:hover{background:#17263e}
+  #glist .gi.on{background:var(--inter);color:#04121f}
+  #glist .gi .e{color:var(--faint);font-variant-numeric:tabular-nums}
+  #glist .gi.on .e{color:#04121f}
+  .seg{display:flex;background:var(--rail2);border:1px solid var(--line);
+    border-radius:8px;padding:3px;gap:3px}
+  .seg button{flex:1;background:none;border:none;color:var(--dim);white-space:nowrap;
+    padding:7px 2px;border-radius:6px;font-size:11px;cursor:pointer;font-weight:550}
+  .seg button.on{background:var(--inter);color:#04121f}
+  .seg button:not(.on):hover{color:var(--ink)}
+  .row{display:flex;gap:8px;margin-top:9px}
+  .row button{flex:1;background:var(--rail2);border:1px solid var(--line);
+    color:var(--ink);padding:8px;border-radius:7px;font-size:12px;cursor:pointer}
+  .row button:hover{border-color:var(--inter)}
+  .legend{font-size:12px;line-height:1.85}
+  .legend .k{display:inline-flex;align-items:center;gap:7px}
+  .dot{width:11px;height:11px;border-radius:50%;display:inline-block;flex:none}
+  .bar{height:9px;border-radius:5px;margin:6px 0 3px}
+  .barlab{display:flex;justify-content:space-between;color:var(--faint);font-size:10.5px}
+  .hint{color:var(--faint);font-size:11.5px;line-height:1.5}
+  .toplist{list-style:none;margin:0;padding:0}
+  .toplist li{display:flex;justify-content:space-between;gap:8px;
+    padding:5px 7px;border-radius:6px;cursor:pointer;font-size:12px}
+  .toplist li:hover{background:var(--rail2)}
+  .toplist .deg{color:var(--hub);font-variant-numeric:tabular-nums;flex:none}
+  .toplist .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+  #stage{position:relative;min-width:0}
+  #cy{position:absolute;inset:0}
+  #hud{position:absolute;left:16px;top:14px;font-size:11.5px;color:var(--dim);
+    background:rgba(10,17,30,.72);border:1px solid var(--line);border-radius:8px;
+    padding:8px 12px;backdrop-filter:blur(6px);pointer-events:none;max-width:60%}
+  #hud b{color:var(--ink);font-weight:600}
+  #splash{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    color:var(--faint);font-size:13px;text-align:center;padding:24px}
+
+  #drawer{position:absolute;right:0;top:0;bottom:0;width:320px;background:var(--rail);
+    border-left:1px solid var(--line);transform:translateX(100%);
+    transition:transform .22s ease;display:flex;flex-direction:column;min-height:0}
+  #drawer.open{transform:translateX(0)}
+  .dhead{padding:16px 18px;border-bottom:1px solid var(--line);position:relative}
+  .dhead .acc{font-size:16px;font-weight:650;word-break:break-all}
+  .dhead .tag{display:inline-block;margin-top:8px;font-size:10.5px;padding:3px 9px;
+    border-radius:20px;font-weight:600;letter-spacing:.4px}
+  .dbody{overflow-y:auto;padding:16px 18px;flex:1}
+  .stat{display:flex;justify-content:space-between;gap:12px;padding:7px 0;
+    border-bottom:1px solid var(--line);font-size:13px}
+  .stat>span:first-child{color:var(--dim);flex:none}
+  .stat .v{font-weight:600;font-variant-numeric:tabular-nums;text-align:right}
+  .dbody h4{margin:18px 0 8px;font-size:10.5px;text-transform:uppercase;
+    letter-spacing:1.2px;color:var(--faint)}
+  .chips{display:flex;flex-wrap:wrap;gap:6px}
+  .chip{background:var(--rail2);border:1px solid var(--line);border-radius:6px;
+    padding:4px 8px;font-size:11.5px;cursor:pointer}
+  .chip:hover{border-color:var(--inter)}
+  .close{position:absolute;right:12px;top:12px;background:none;border:none;
+    color:var(--dim);font-size:20px;cursor:pointer;line-height:1}
+  .close:hover{color:var(--ink)}
+  .filebtn{display:block;width:100%;text-align:center;background:var(--rail2);
+    border:1px dashed var(--line);color:var(--ink);padding:10px;border-radius:8px;
+    font-size:12px;cursor:pointer}
+  .filebtn:hover{border-color:var(--inter)}
+  .filebtn input{display:none}
+  #lstatus{margin-top:7px;font-size:11.5px;color:var(--faint);line-height:1.5}
+  #glist .gi .lt{color:#34d399;font-size:9.5px;margin-left:6px;letter-spacing:.5px}
+  .topo{display:grid;grid-template-columns:1fr 1fr;gap:0 14px;font-size:12px}
+  .topo .m{display:flex;justify-content:space-between;gap:6px;padding:4px 0;border-bottom:1px solid var(--line)}
+  .topo .m span:first-child{color:var(--dim)}
+  .topo .m span:last-child{font-weight:600;font-variant-numeric:tabular-nums}
+  .histo{grid-column:1/3;margin-top:10px}
+  .histo .cap{font-size:10px;color:var(--faint);margin-bottom:5px;text-transform:uppercase;letter-spacing:1px}
+  .histo svg{display:block;width:100%;height:52px}
+  .histo .xl{display:flex;justify-content:space-between;color:var(--faint);font-size:9px;margin-top:3px}
+  #heatmap{position:absolute;inset:0;background:var(--bg);display:none;overflow:auto;padding:22px 26px}
+  #heatmap.open{display:block}
+  #hmBody h2{margin:0 0 4px;font-size:16px}
+  #hmBody .hmsub{color:var(--dim);font-size:12.5px;margin-bottom:16px;max-width:760px;line-height:1.5}
+  table.hm{border-collapse:separate;border-spacing:2px;font-size:11px}
+  table.hm th{font-weight:600;color:var(--dim);padding:4px 6px;text-align:center;white-space:nowrap}
+  table.hm th.rowh{text-align:right;font-family:ui-monospace,monospace;font-weight:500;color:var(--ink)}
+  table.hm td{width:26px;height:26px;border-radius:4px;text-align:center;color:#06121f;
+    font-size:9px;font-weight:600;cursor:default}
+  table.hm td.empty{background:#182538;color:var(--faint)}
+  .hmlegend{display:flex;flex-wrap:wrap;gap:8px 16px;margin:18px 0 6px}
+  .hmlegend .k{display:inline-flex;align-items:center;gap:6px;font-size:12px}
+  .hmlegend .sw{width:13px;height:13px;border-radius:3px;display:inline-block}
+</style>
+</head>
+<body>
+<div id="app">
+  <aside id="rail">
+    <div class="brand">
+      <h1>Predicted regulatory network</h1>
+      <div class="sub">Transcription factors and the genes they regulate in <i>Klebsiella</i>, from orthology extended with transcription units.</div>
+    </div>
+    <div class="scroll">
+      <div class="grp">
+        <label>Genome</label>
+        <input class="f mono" id="gfilter" placeholder="filter by accession…" autocomplete="off">
+        <div id="glist"></div>
+      </div>
+      <div class="grp">
+        <label>Load local data</label>
+        <label class="filebtn">Choose .zip or file(s)…
+          <input type="file" id="lfile" multiple>
+        </label>
+        <div id="lstatus">Processed in your browser; nothing is uploaded. Loaded genomes last only for this session.</div>
+      </div>
+      <div class="grp">
+        <label>Search gene or TF</label>
+        <input class="f" id="q" placeholder="e.g. betA or AHI38402.1" autocomplete="off">
+        <div class="hint" style="margin-top:7px">Enter centers the node and expands its regulon. Searches gene name, locus or accession.</div>
+      </div>
+      <div class="grp">
+        <label>Color by</label>
+        <div class="seg" id="mode">
+          <button data-m="tier" class="on">Hierarchy</button>
+          <button data-m="hub">Hub</button>
+          <button data-m="conf">Confidence</button>
+          <button data-m="btw">Bottleneck</button>
+        </div>
+        <div class="row">
+          <button id="viewBackbone">TF→TF backbone</button>
+          <button id="viewReset">Refit</button>
+        </div>
+        <div class="row">
+          <button id="viewTop10">Top 10 hubs (rank)</button>
+        </div>
+      </div>
+      <div class="grp">
+        <label>Confidence filter</label>
+        <div class="seg" id="conf">
+          <button data-c="-1" class="on">All</button>
+          <button data-c="1">≥1 org</button>
+          <button data-c="2">≥2</button>
+          <button data-c="3">≥3</button>
+        </div>
+        <div class="hint" style="margin-top:7px">Hide weaker edges; "≥1 org" drops TU-only predictions.</div>
+      </div>
+      <div class="grp">
+        <label>Legend</label>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="grp">
+        <label>Top regulators (hubs)</label>
+        <ul class="toplist" id="tophubs"></ul>
+      </div>
+      <div class="grp">
+        <label>Network topology</label>
+        <div class="topo" id="topo"></div>
+      </div>
+      <div class="grp">
+        <label>Export</label>
+        <div class="row">
+          <button id="expPNG">Figure (PNG)</button>
+          <button id="expEdges">Edges (CSV)</button>
+        </div>
+        <div class="row">
+          <button id="expNodes">Nodes (CSV)</button>
+        </div>
+        <div class="hint" style="margin-top:7px">Exports what is on screen (current view + confidence filter), with gene names.</div>
+      </div>
+      <div class="grp">
+        <label>Compare strains</label>
+        <select class="f" id="cmpSel"><option value="">— pick a second genome —</option></select>
+        <div class="hint" id="cmpHint" style="margin-top:7px">Then open a TF (with a gene symbol) and click "Compare regulon". Matches genes by symbol.</div>
+      </div>
+      <div class="grp">
+        <label>Hub families</label>
+        <div class="row"><button id="openHeatmap">Family heatmap</button></div>
+        <div class="hint" style="margin-top:7px">Are the top hubs the same TF family across organisms? Pfam-based.</div>
+      </div>
+    </div>
+  </aside>
+
+  <div id="stage">
+    <div id="cy"></div>
+    <div id="hud"></div>
+    <div id="splash">Loading genomes…</div>
+    <div id="heatmap"><button class="close" id="hmClose">&times;</button><div id="hmBody"></div></div>
+    <div id="drawer">
+      <button class="close" id="dclose">&times;</button>
+      <div class="dhead"><div class="acc" id="dacc"></div><span class="tag" id="dtag"></span></div>
+      <div class="dbody" id="dbody"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const EMB = window.EMBEDDED || null;   // self-contained demo if present
+  const tierName = ['Master TF','Intermediate TF','Target gene'];
+  const tierColor = ['#16a34a','#4ade80','#5b6b86'];  // master TF (dark green), intermediate TF (light green), target (grey)
+  const confColor = c => c<0 ? '#52525b' : ['#52525b','#92400e','#b45309','#d97706','#f5a524'][Math.min(c,4)];
+  // HSL -> rgb() string, because Cytoscape does not parse space-separated hsl().
+  function hsl2rgb(h,s,l){
+    h=((h%360)+360)%360; const a=s*Math.min(l,1-l);
+    const f=n=>{ const k=(n+h/30)%12; return Math.round(255*(l-a*Math.max(-1,Math.min(k-3,9-k,1)))); };
+    return `rgb(${f(0)},${f(8)},${f(4)})`;
+  }
+  const rampColor = t => hsl2rgb(222 + Math.max(0,Math.min(1,t))*168, 0.78, 0.58);
+
+  let cy=null, G=null, mode='tier', curId=null;
+  let forceLabels=false; const LABEL_PX=20;
+  // progressive labels: show a node's label once its on-screen size passes LABEL_PX
+  function updateLabels(){ if(!cy) return; const z=cy.zoom();
+    cy.batch(()=>cy.nodes().forEach(n=>n.toggleClass('big', forceLabels || (n.width()*z)>=LABEL_PX))); }
+  let minConf=-1;   // confidence filter: hide edges with c < minConf
+  let cmpB=null;    // second (prepped) genome for strain comparison
+  function applyConfFilter(){ if(!cy) return;
+    cy.batch(()=>cy.edges().forEach(e=>e.style('display',(e.data('c')>=minConf)?'element':'none'))); }
+
+  // betweenness centrality (Brandes, directed unweighted); cached per genome
+  function computeBetweenness(g){
+    const ids=g.ids, N=ids.length;
+    const adj=Array.from({length:N},()=>[]);
+    g.raw.e.forEach(([s,t])=>{ if(s!==t) adj[s].push(t); });
+    const CB=new Float64Array(N), P=Array.from({length:N},()=>[]);
+    const sigma=new Float64Array(N), dist=new Int32Array(N), delta=new Float64Array(N);
+    const Q=new Int32Array(N), S=new Int32Array(N);
+    for(let s=0;s<N;s++){
+      for(let i=0;i<N;i++) P[i].length=0;
+      sigma.fill(0); dist.fill(-1); delta.fill(0);
+      sigma[s]=1; dist[s]=0; let qh=0,qt=0,st=0; Q[qt++]=s;
+      while(qh<qt){ const v=Q[qh++]; S[st++]=v; const av=adj[v];
+        for(let k=0;k<av.length;k++){ const w=av[k];
+          if(dist[w]<0){ dist[w]=dist[v]+1; Q[qt++]=w; }
+          if(dist[w]===dist[v]+1){ sigma[w]+=sigma[v]; P[w].push(v); } } }
+      for(let i=st-1;i>=0;i--){ const w=S[i], pw=P[w];
+        for(let k=0;k<pw.length;k++){ const v=pw[k]; delta[v]+=(sigma[v]/sigma[w])*(1+delta[w]); }
+        if(w!==s) CB[w]+=delta[w]; }
+    }
+    return CB;
+  }
+  function ensureBetweenness(g){
+    if(g.btw) return;
+    const cb=computeBetweenness(g), m=new Map(); let mx=0;
+    g.ids.forEach((id,i)=>{ m.set(id,cb[i]); if(cb[i]>mx)mx=cb[i]; });
+    g.btw=m; g.maxBtw=mx||1;
+  }
+
+  // display label / function come from GFF-derived names, if present
+  const dispOf = id => (G.names && G.names[id] && G.names[id][0]) || id;
+  const prodOf = id => (G.names && G.names[id] && G.names[id][1]) || '';
+
+  async function loadManifest(){ if(EMB) return EMB.manifest; return (await fetch('manifest.json')).json(); }
+  const LOCAL = new Map();   // genomes loaded from the user's device (session)
+  async function loadGenome(id){
+    if(LOCAL.has(id)) return LOCAL.get(id);
+    if(EMB && EMB.data[id]) return EMB.data[id];
+    return (await fetch('data/'+id+'.json')).json();
+  }
+
+  function prep(raw){
+    const ids = raw.n.map(r=>r[0]);
+    const byId = new Map();
+    raw.n.forEach(r=>byId.set(r[0],{id:r[0],tf:!!r[1],out:r[2],in:r[3],tier:r[4]}));
+    const outAdj=new Map(), inAdj=new Map(); let maxOut=1;
+    raw.n.forEach(r=>{ if(r[2]>maxOut)maxOut=r[2]; });
+    raw.e.forEach(([s,t,c])=>{
+      const S=ids[s], T=ids[t];
+      (outAdj.get(S)||outAdj.set(S,[]).get(S)).push([T,c]);
+      (inAdj.get(T)||inAdj.set(T,[]).get(T)).push([S,c]);
+    });
+    const nmap = raw.names||{};
+    const labelOf = id => (nmap[id] && nmap[id][0]) || id;
+    const idByLabel = new Map();
+    raw.n.forEach(r=>{ idByLabel.set(labelOf(r[0]), r[0]); });
+    return {raw, ids, byId, outAdj, inAdj, maxOut, names:raw.names||null, labelOf, idByLabel,
+      isTF:new Set(raw.n.filter(r=>r[1]).map(r=>r[0])), stats:raw.stats, genome:raw.genome};
+  }
+  function regulonByLabel(g, tfLabel){
+    const id=g.idByLabel.get(tfLabel); if(!id) return null;
+    const s=new Set();
+    (g.outAdj.get(id)||[]).forEach(([t])=>{ if(t!==id) s.add(g.labelOf(t)); });
+    return s;
+  }
+
+  const sizeFor = o => 14 + 44*Math.sqrt(o/G.maxOut);
+  const mkNode = (id,n)=>({data:{id,disp:dispOf(id),out:n.out,ind:n.in,tier:n.tier,tf:n.tf?1:0}});
+
+  function backboneElements(){
+    const els=[];
+    G.raw.n.forEach(r=>{ if(r[1]) els.push({data:{id:r[0],disp:dispOf(r[0]),out:r[2],ind:r[3],tier:r[4],tf:1}}); });
+    const seen=new Set();
+    G.outAdj.forEach((lst,S)=>{
+      if(!G.isTF.has(S))return;
+      lst.forEach(([T,c])=>{
+        if(G.isTF.has(T)&&T!==S){ const k=S+'>'+T; if(seen.has(k))return; seen.add(k);
+          els.push({data:{id:'e_'+k,source:S,target:T,c}}); }
+      });
+    });
+    return els;
+  }
+
+  function makeCy(){
+    cy = cytoscape({
+      container:document.getElementById('cy'), wheelSensitivity:.22,
+      style:[
+        {selector:'node',style:{
+          'background-color':e=>tierColor[e.data('tier')]||'#5b6b86',
+          'width':e=>sizeFor(e.data('out')||0),'height':e=>sizeFor(e.data('out')||0),
+          'label':'data(disp)','color':'#cdd9ec','font-size':7,
+          'font-family':'ui-sans-serif,system-ui,sans-serif','text-opacity':0,
+          'text-valign':'center','text-halign':'center','border-width':0,
+          'transition-property':'background-color,border-width,opacity','transition-duration':'140ms'}},
+        {selector:'node.big',style:{'text-opacity':.92}},
+        {selector:'edge',style:{
+          'width':e=>1+Math.max(0,e.data('c'))*0.5,'line-color':'#243a5a',
+          'target-arrow-color':'#31517d','target-arrow-shape':'triangle','arrow-scale':.7,
+          'curve-style':'bezier','opacity':.55,
+          'transition-property':'line-color,opacity','transition-duration':'140ms'}},
+        {selector:'node:selected',style:{'border-width':3,'border-color':'#f472b6'}},
+        {selector:'.faded',style:{'opacity':.08}},
+        {selector:'edge.hot',style:{'line-color':'#f472b6','opacity':.95,'width':2,'target-arrow-color':'#f472b6','z-index':9}},
+        {selector:'node.hot',style:{'border-width':3,'border-color':'#f472b6','text-opacity':.95}}
+      ]
+    });
+    cy.on('zoom', updateLabels);
+    cy.on('tap','node',ev=>focusNode(ev.target.id(), G.isTF.has(ev.target.id())));
+    cy.on('tap',ev=>{ if(ev.target===cy){ closeDrawer(); } });
+  }
+
+  function showGenome(raw){
+    G = prep(raw); curId = raw.genome; forceLabels=false;
+    if(!cy) makeCy(); else cy.elements().remove();
+    cy.add(backboneElements());
+    applyMode(mode);
+    cy.layout({name:'cose',animate:false,nodeRepulsion:9000,idealEdgeLength:60,padding:40}).run();
+    cy.fit(undefined,50); updateLabels(); applyConfFilter();
+    document.getElementById('splash').style.display='none';
+    document.getElementById('hud').innerHTML =
+      `<b class="mono">${raw.genome}</b> · <b>${G.stats.tfs}</b> TFs · <b>${G.stats.targets}</b> target genes · <b>${G.stats.edges}</b> interactions`;
+    const top=[...G.byId.values()].sort((a,b)=>b.out-a.out).slice(0,12);
+    document.getElementById('tophubs').innerHTML = top.map(n=>
+      `<li data-id="${n.id}" title="${n.id}"><span class="nm">${dispOf(n.id)}</span><span class="deg">${n.out}</span></li>`).join('');
+    document.querySelectorAll('#tophubs li').forEach(li=>li.onclick=()=>focusNode(li.dataset.id,true));
+    renderTopology();
+    populateCmp();
+    closeDrawer();
+    { const g=G; setTimeout(()=>ensureBetweenness(g), 60); }   // precompute in background
+  }
+
+  // ---------- graph topology (computed in the browser) ----------
+  function computeTopology(){
+    const N=G.stats.nodes, E=G.stats.edges;
+    let selfl=0; G.raw.e.forEach(([s,t])=>{ if(s===t) selfl++; });
+    const par=new Int32Array(N); for(let i=0;i<N;i++) par[i]=i;
+    const find=x=>{ while(par[x]!==x){ par[x]=par[par[x]]; x=par[x]; } return x; };
+    G.raw.e.forEach(([s,t])=>{ if(s!==t){ const a=find(s),b=find(t); if(a!==b) par[a]=b; } });
+    const size=new Map();
+    for(let i=0;i<N;i++){ const r=find(i); size.set(r,(size.get(r)||0)+1); }
+    const sizes=[...size.values()];
+    const comp=sizes.length, giant=sizes.reduce((m,s)=>s>m?s:m,0), singl=sizes.filter(s=>s===1).length;
+    let master=0,inter=0;
+    G.raw.n.forEach(r=>{ if(r[4]===0)master++; else if(r[4]===1)inter++; });
+    const density=E/(N*(N-1));
+    const meanOutTF=(master+inter)?(E-selfl)/(master+inter):0;
+    const edges=[2,4,8,16,32,64,Infinity], labels=['1','2-3','4-7','8-15','16-31','32-63','64+'];
+    const buckets=new Array(labels.length).fill(0);
+    G.raw.n.forEach(r=>{ if(r[1] && r[2]>0){ for(let b=0;b<labels.length;b++){ if(r[2]<edges[b]){ buckets[b]++; break; } } } });
+    return {N,E,selfl,comp,giant,singl,master,inter,density,meanOutTF,buckets,labels};
+  }
+  function renderTopology(){
+    const t=computeTopology();
+    const maxb=Math.max(1,...t.buckets), bw=100/t.buckets.length;
+    const bars=t.buckets.map((v,i)=>{ const h=v?(6+42*v/maxb):0;
+      return `<rect x="${(i*bw+1).toFixed(2)}" y="${(52-h).toFixed(2)}" width="${(bw-2).toFixed(2)}" height="${h.toFixed(2)}" rx="1" fill="#38bdf8" opacity=".85"><title>${t.labels[i]}: ${v} TFs</title></rect>`;
+    }).join('');
+    document.getElementById('topo').innerHTML=`
+      <div class="m"><span>Nodes</span><span>${t.N}</span></div>
+      <div class="m"><span>Edges</span><span>${t.E}</span></div>
+      <div class="m"><span>Master TFs</span><span>${t.master}</span></div>
+      <div class="m"><span>Intermediate TFs</span><span>${t.inter}</span></div>
+      <div class="m"><span>Components</span><span>${t.comp}</span></div>
+      <div class="m"><span>Giant comp.</span><span>${t.giant}</span></div>
+      <div class="m"><span>Singletons</span><span>${t.singl}</span></div>
+      <div class="m"><span>Self-loops</span><span>${t.selfl}</span></div>
+      <div class="m"><span>Density</span><span>${t.density.toExponential(1)}</span></div>
+      <div class="m"><span>Mean TF out-degree</span><span>${t.meanOutTF.toFixed(1)}</span></div>
+      <div class="histo">
+        <div class="cap">Out-degree distribution (TF)</div>
+        <svg viewBox="0 0 100 52" preserveAspectRatio="none">${bars}</svg>
+        <div class="xl">${t.labels.map(l=>`<span>${l}</span>`).join('')}</div>
+      </div>`;
+  }
+
+  function applyMode(m){
+    mode=m;
+    if(m==='btw') ensureBetweenness(G);
+    cy.batch(()=>{
+      cy.nodes().forEach(n=>{
+        if(m==='tier') n.style('background-color', tierColor[n.data('tier')]||'#5b6b86');
+        else if(m==='hub'){ const o=n.data('out')||0,t=o/G.maxOut;
+          n.style('background-color', o===0?'#33465f':hsl2rgb(38-6*t,0.92,0.40+0.34*t)); }
+        else if(m==='btw'){ const b=G.btw.get(n.data('id'))||0, t=b/G.maxBtw;
+          n.style('background-color', b===0?'#2b3443':hsl2rgb(155,0.6,0.30+0.42*Math.sqrt(t))); }
+        else n.style('background-color','#33465f');
+      });
+      cy.edges().forEach(e=> e.style('line-color', m==='conf'?confColor(e.data('c')):'#243a5a'));
+    });
+    renderLegend();
+  }
+  document.querySelectorAll('#mode button').forEach(b=>b.onclick=()=>{
+    document.querySelectorAll('#mode button').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on'); applyMode(b.dataset.m); });
+  document.querySelectorAll('#conf button').forEach(b=>b.onclick=()=>{
+    document.querySelectorAll('#conf button').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on'); minConf=parseInt(b.dataset.c,10); applyConfFilter(); });
+
+  function renderLegend(){
+    const L=document.getElementById('legend');
+    if(mode==='tier') L.innerHTML=
+      `<div class="k"><span class="dot" style="background:${tierColor[0]}"></span>Master TF (regulated by none)</div>
+       <div class="k"><span class="dot" style="background:${tierColor[1]}"></span>Intermediate TF</div>
+       <div class="k"><span class="dot" style="background:${tierColor[2]}"></span>Target gene</div>
+       <div class="hint" style="margin-top:8px">Node size grows with the number of genes it regulates. This view draws only TF→TF links; a TF that regulates only non-TF genes appears isolated — click it to expand its regulon.</div>`;
+    else if(mode==='hub') L.innerHTML=
+      `<div class="bar" style="background:linear-gradient(90deg,#33465f,#b45309,#f5a524)"></div>
+       <div class="barlab"><span>0</span><span>${G?G.maxOut:''} regulated</span></div>
+       <div class="hint" style="margin-top:8px">Color and intensity ∝ regulatory reach (out-degree).</div>`;
+    else if(mode==='btw') L.innerHTML=
+      `<div class="bar" style="background:linear-gradient(90deg,#2b3443,${hsl2rgb(155,.6,.5)},${hsl2rgb(155,.72,.62)})"></div>
+       <div class="barlab"><span>0</span><span>max</span></div>
+       <div class="hint" style="margin-top:8px">Betweenness: share of shortest regulatory paths passing through the node — marks bottleneck / relay regulators, which can differ from the biggest hubs.</div>`;
+    else L.innerHTML=
+      `<div class="bar" style="background:linear-gradient(90deg,#52525b,#92400e,#b45309,#d97706,#f5a524)"></div>
+       <div class="barlab"><span>TU only</span><span>4 organisms</span></div>
+       <div class="hint" style="margin-top:8px">Edge confidence = number of reference organisms supporting it; "TU only" = added by transcription-unit extension, without its own ortholog.</div>`;
+  }
+
+  function expandRegulon(id){
+    const outs=(G.outAdj.get(id)||[]); const add=[];
+    outs.forEach(([T,c])=>{
+      if(T===id)return;
+      if(cy.getElementById(T).empty()) add.push(mkNode(T, G.byId.get(T)));
+      if(cy.getElementById('r_'+id+'>'+T).empty())
+        add.push({data:{id:'r_'+id+'>'+T,source:id,target:T,c}});
+    });
+    if(add.length) cy.add(add);
+    applyMode(mode);
+    cy.layout({name:'concentric',concentric:n=>n.id()===id?10:1,levelWidth:()=>1,
+      minNodeSpacing:14,animate:true,animationDuration:400,boundingBox:cy.extent(),fit:false}).run();
+    updateLabels(); applyConfFilter();
+  }
+  function focusNode(id,expand){
+    if(!G.byId.has(id))return;
+    if(cy.getElementById(id).empty()) cy.add([mkNode(id, G.byId.get(id))]);
+    cy.$(':selected').unselect(); cy.getElementById(id).select();
+    if(expand && G.isTF.has(id)) expandRegulon(id);
+    highlight(id);
+    cy.animate({center:{eles:cy.getElementById(id)},zoom:1.5},{duration:350});
+    openDrawer(id);
+  }
+  function highlight(id){
+    cy.elements().removeClass('hot faded');
+    const touch=cy.getElementById(id).connectedEdges();
+    const nbr=touch.connectedNodes().union(cy.getElementById(id));
+    cy.elements().not(nbr).not(touch).addClass('faded');
+    touch.addClass('hot'); cy.getElementById(id).addClass('hot');
+  }
+
+  const drawer=document.getElementById('drawer');
+  function closeDrawer(){ drawer.classList.remove('open'); if(cy) cy.elements().removeClass('hot faded'); }
+  function openDrawer(id){
+    const n=G.byId.get(id); if(!n)return;
+    ensureBetweenness(G);
+    const name=dispOf(id), prod=prodOf(id);
+    document.getElementById('dacc').textContent=name;
+    const tag=document.getElementById('dtag');
+    tag.textContent=tierName[n.tier]; tag.style.background=tierColor[n.tier]; tag.style.color='#04121f';
+    const selfLoop=(G.outAdj.get(id)||[]).some(x=>x[0]===id);
+    const regs=(G.inAdj.get(id)||[]).filter(x=>x[0]!==id).map(x=>x[0]);
+    const tgts=(G.outAdj.get(id)||[]).filter(x=>x[0]!==id).map(x=>x[0]);
+    document.getElementById('dbody').innerHTML=`
+      ${name!==id?`<div class="stat"><span>Accession</span><span class="v mono" style="font-weight:500">${id}</span></div>`:''}
+      ${prod?`<div class="stat"><span>Function</span><span class="v" style="font-weight:500;max-width:205px">${prod}</span></div>`:''}
+      <div class="stat"><span>Is a TF?</span><span class="v">${n.tf?'Yes':'No'}</span></div>
+      <div class="stat"><span>Genes it regulates</span><span class="v">${n.out}</span></div>
+      <div class="stat"><span>Regulators controlling it</span><span class="v">${n.in}</span></div>
+      <div class="stat"><span>Betweenness</span><span class="v">${(G.btw.get(id)/G.maxBtw).toFixed(3)}</span></div>
+      ${selfLoop?`<div class="stat"><span>Self-regulation</span><span class="v" style="color:var(--focus)">Yes</span></div>`:''}
+      ${(n.tf && tgts.length)?`<button id="btnCascade" style="width:100%;margin:12px 0 2px;background:var(--rail2);border:1px solid var(--line);color:var(--ink);padding:9px;border-radius:7px;font-size:12px;cursor:pointer">↓ Trace downstream cascade</button>`:''}
+      ${(cmpB && n.tf && name!==id && cmpB.idByLabel && cmpB.idByLabel.has(name))?`<button id="btnCompare" style="width:100%;margin:6px 0 2px;background:var(--rail2);border:1px solid var(--line);color:var(--ink);padding:9px;border-radius:7px;font-size:12px;cursor:pointer">⇄ Compare regulon across strains</button>`:''}
+      ${tgts.length?`<h4>Regulates (${tgts.length})</h4><div class="chips">${
+        tgts.slice(0,40).map(t=>`<span class="chip" data-go="${t}" title="${t}">${dispOf(t)}</span>`).join('')}${
+        tgts.length>40?`<span class="chip" style="cursor:default">+${tgts.length-40}</span>`:''}</div>`:''}
+      ${regs.length?`<h4>Regulated by (${regs.length})</h4><div class="chips">${
+        regs.slice(0,40).map(t=>`<span class="chip" data-go="${t}" title="${t}">${dispOf(t)}</span>`).join('')}</div>`:''}
+      ${(!tgts.length&&!regs.length)?`<div class="hint" style="margin-top:14px">${selfLoop
+        ? 'This TF only has self-regulation in the data: it regulates no other genes and is regulated by none. It is a network singleton.'
+        : 'No interactions recorded in this network.'}</div>`:''}`;
+    document.querySelectorAll('#dbody .chip[data-go]').forEach(c=>c.onclick=()=>focusNode(c.dataset.go,true));
+    const bc=document.getElementById('btnCascade'); if(bc) bc.onclick=()=>showCascade(id);
+    const bcmp=document.getElementById('btnCompare'); if(bcmp) bcmp.onclick=()=>showComparison(name);
+    drawer.classList.add('open');
+  }
+  document.getElementById('dclose').onclick=()=>{ closeDrawer(); cy.$(':selected').unselect(); };
+
+  document.getElementById('q').addEventListener('keydown',e=>{
+    if(e.key!=='Enter'||!G)return;
+    const v=e.target.value.trim(); if(!v)return;
+    const vl=v.toLowerCase();
+    let hit = G.byId.has(v) ? v : null;
+    if(!hit && G.names){
+      for(const nid in G.names){ if((G.names[nid][0]||'').toLowerCase()===vl){ hit=nid; break; } }
+      if(!hit) for(const nid in G.names){ if((G.names[nid][0]||'').toLowerCase().startsWith(vl)){ hit=nid; break; } }
+    }
+    if(!hit) hit=[...G.byId.keys()].find(k=>k.toLowerCase().startsWith(vl));
+    if(hit) focusNode(hit,true);
+    else{ e.target.style.borderColor='#ef4444'; setTimeout(()=>e.target.style.borderColor='',600); }
+  });
+
+  document.getElementById('viewBackbone').onclick=()=>{ if(!G)return;
+    forceLabels=false;
+    cy.elements().remove(); cy.add(backboneElements()); applyMode(mode);
+    cy.layout({name:'cose',animate:false,nodeRepulsion:9000,idealEdgeLength:60,padding:40}).run();
+    cy.fit(undefined,50); updateLabels(); applyConfFilter();
+    document.querySelectorAll('#tophubs li').forEach(li=>{li.style.borderLeft='';li.style.paddingLeft='';});
+    closeDrawer(); };
+  document.getElementById('viewReset').onclick=()=>{ if(cy){cy.fit(undefined,50);cy.elements().removeClass('hot faded');} };
+
+  // ---------- export ----------
+  function download(name, blob){
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name;
+    document.body.appendChild(a); a.click();
+    setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 200);
+  }
+  const csvCell=v=>{ v=String(v==null?'':v); return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; };
+  function exportPNG(){ if(!cy)return;
+    let blob;
+    // full graph, but cap dimensions so the canvas never exceeds the browser limit (blank PNG)
+    try{ blob=cy.png({output:'blob', bg:'#0a111e', full:true, maxWidth:10000, maxHeight:10000}); }catch(e){ blob=null; }
+    if(!blob || blob.size<200){ try{ blob=cy.png({output:'blob', bg:'#0a111e', full:false, scale:2}); }catch(e){ blob=null; } }
+    if(!blob){ alert('Could not render the image — try zooming out or exporting a smaller view.'); return; }
+    download((curId||'network')+'.png', blob); }
+  function exportEdgesCSV(){ if(!cy)return;
+    const rows=[['source','source_name','target','target_name','confidence']];
+    cy.edges().forEach(e=>{ if(e.style('display')==='none')return;
+      const s=e.data('source'), t=e.data('target'), c=e.data('c');
+      rows.push([s,dispOf(s),t,dispOf(t), c<0?'TU_only':c]); });
+    download((curId||'network')+'_edges.csv',
+      new Blob([rows.map(r=>r.map(csvCell).join(',')).join('\n')],{type:'text/csv'})); }
+  function exportNodesCSV(){ if(!cy)return; ensureBetweenness(G);
+    const role=['master_TF','intermediate_TF','target'];
+    const rows=[['id','name','function','is_TF','out_degree','in_degree','role','betweenness']];
+    cy.nodes().forEach(n=>{ if(n.style('display')==='none')return; const id=n.id(), nd=G.byId.get(id); if(!nd)return;
+      rows.push([id,dispOf(id),prodOf(id),nd.tf?'yes':'no',nd.out,nd.in,role[nd.tier],(G.btw.get(id)/G.maxBtw).toFixed(4)]); });
+    download((curId||'network')+'_nodes.csv',
+      new Blob([rows.map(r=>r.map(csvCell).join(',')).join('\n')],{type:'text/csv'})); }
+  document.getElementById('expPNG').onclick=exportPNG;
+  document.getElementById('expEdges').onclick=exportEdgesCSV;
+  document.getElementById('expNodes').onclick=exportNodesCSV;
+  document.getElementById('viewTop10').onclick=()=>{ if(!G)return;
+    const top=[...G.byId.values()].sort((a,b)=>b.out-a.out).slice(0,10);
+    const denom=Math.max(1, top.length-1), gap=120, W=(top.length-1)*gap;
+    cy.elements().remove();
+    const set=new Set(top.map(n=>n.id));
+    const els=top.map((n,i)=>({data:{id:n.id,disp:dispOf(n.id),out:n.out,ind:n.in,tier:n.tier,tf:1,rank:i+1},
+      position:{x:i*gap-W/2, y:0}}));
+    top.forEach(n=>(G.outAdj.get(n.id)||[]).forEach(([T,c])=>{
+      if(set.has(T)&&T!==n.id) els.push({data:{id:'h_'+n.id+'>'+T,source:n.id,target:T,c}});
+    }));
+    forceLabels=true;
+    cy.add(els);
+    cy.batch(()=>cy.nodes().forEach(nd=>
+      nd.style('background-color', rampColor((nd.data('rank')-1)/denom)) ));
+    cy.layout({name:'preset',fit:true,padding:70}).run();
+    updateLabels(); applyConfFilter();
+    renderTop10Legend(top);
+    document.querySelectorAll('#tophubs li').forEach((li,i)=>{
+      li.style.borderLeft = i<top.length ? ('3px solid '+rampColor(i/denom)) : '';
+      li.style.paddingLeft = i<top.length ? '6px' : '';
+    });
+    closeDrawer();
+  };
+  function renderTop10Legend(top){
+    const bar='linear-gradient(90deg,'+[0,.17,.34,.5,.66,.83,1].map(rampColor).join(',')+')';
+    document.getElementById('legend').innerHTML=
+      `<div class="bar" style="background:${bar}"></div>
+       <div class="barlab"><span>Top 1</span><span>Top ${top.length}</span></div>
+       <div class="hint" style="margin-top:8px">Only the ${top.length} regulators with the most regulated genes, colored by rank (top 1 → top ${top.length}). Node size follows out-degree; lines are regulation between hubs.</div>`;
+  }
+
+  // ---------- downstream regulatory cascade ----------
+  function showCascade(root){
+    const level=new Map([[root,0]]); const q=[root]; let maxL=0; const CAP=600;
+    const nodesIn=new Set([root]); const edgesIn=[];
+    while(q.length && nodesIn.size<CAP){
+      const u=q.shift(), lu=level.get(u);
+      for(const [v,c] of (G.outAdj.get(u)||[])){
+        if(v===u) continue;
+        edgesIn.push([u,v,c]);
+        if(!level.has(v)){ level.set(v,lu+1); if(lu+1>maxL)maxL=lu+1;
+          nodesIn.add(v); if(nodesIn.size<CAP) q.push(v); }
+      }
+    }
+    forceLabels=false;
+    cy.elements().remove();
+    const els=[];
+    nodesIn.forEach(id=>{ const n=G.byId.get(id);
+      els.push({data:{id,disp:dispOf(id),out:n.out,ind:n.in,tier:n.tier,tf:n.tf?1:0,lvl:level.get(id)}}); });
+    const seen=new Set();
+    edgesIn.forEach(([u,v,c])=>{ if(!nodesIn.has(v))return; const k=u+'>'+v;
+      if(seen.has(k))return; seen.add(k); els.push({data:{id:'c_'+k,source:u,target:v,c}}); });
+    cy.add(els);
+    cy.batch(()=>cy.nodes().forEach(nd=>{ const l=nd.data('lvl');
+      nd.style('background-color', l===0?'#f472b6':rampColor(maxL?l/maxL:0)); }));
+    cy.layout({name:'breadthfirst',directed:true,roots:[root],spacingFactor:1.1,padding:40,animate:false}).run();
+    cy.fit(undefined,50); updateLabels(); applyConfFilter();
+    const bar='linear-gradient(90deg,#f472b6,'+[0,.25,.5,.75,1].map(rampColor).join(',')+')';
+    document.getElementById('legend').innerHTML=
+      `<div class="bar" style="background:${bar}"></div>
+       <div class="barlab"><span>root</span><span>level ${maxL}</span></div>
+       <div class="hint" style="margin-top:8px">Downstream cascade from <b>${dispOf(root)}</b>: ${nodesIn.size} genes across ${maxL} level(s)${nodesIn.size>=CAP?' (capped at '+CAP+')':''}, colored by depth. "TF→TF backbone" to go back.</div>`;
+    document.querySelectorAll('#tophubs li').forEach(li=>{li.style.borderLeft='';li.style.paddingLeft='';});
+    closeDrawer();
+  }
+
+  // ---------- strain comparison ----------
+  const shortG = acc => acc.split('_').slice(0,2).join('_');
+  function populateCmp(){
+    const sel=document.getElementById('cmpSel'); if(!sel) return; const prev=sel.value;
+    sel.innerHTML='<option value="">— pick a second genome —</option>'+
+      manifest.filter(m=>m.id!==curId).map(m=>`<option value="${m.id}">${m.id}${m.named?'':' (no names)'}</option>`).join('');
+    if(cmpB && cmpB.genome===curId) cmpB=null;
+    sel.value=(prev && prev!==curId && manifest.some(m=>m.id===prev))?prev:'';
+    if(!sel.value) cmpB=null;
+  }
+  function showComparison(tfLabel){
+    if(!cmpB) return;
+    const ra=regulonByLabel(G,tfLabel)||new Set();
+    const rb=regulonByLabel(cmpB,tfLabel)||new Set();
+    const all=new Set([...ra,...rb]);
+    forceLabels=true; cy.elements().remove();
+    const col={tf:'#f472b6', both:'#34d399', a:'#38bdf8', b:'#f5a524'};
+    const els=[{data:{id:'__tf',disp:tfLabel,cmp:'tf'}}];
+    let both=0,aonly=0,bonly=0;
+    all.forEach(lab=>{
+      const cat=(ra.has(lab)&&rb.has(lab))?'both':(ra.has(lab)?'a':'b');
+      if(cat==='both')both++; else if(cat==='a')aonly++; else bonly++;
+      els.push({data:{id:'t_'+lab,disp:lab,cmp:cat}});
+      els.push({data:{id:'ce_'+lab,source:'__tf',target:'t_'+lab,cmp:cat}});
+    });
+    cy.add(els);
+    cy.batch(()=>{ cy.nodes().forEach(n=>n.style('background-color',col[n.data('cmp')]||'#5b6b86'));
+      cy.edges().forEach(e=>e.style('line-color',col[e.data('cmp')]||'#243a5a').style('display','element')); });
+    cy.layout({name:'concentric',concentric:n=>n.id()==='__tf'?10:1,levelWidth:()=>1,minNodeSpacing:12,animate:false,padding:40}).run();
+    cy.fit(undefined,50); updateLabels();
+    const jac=all.size?(both/all.size):0;
+    document.getElementById('legend').innerHTML=
+      `<div class="k"><span class="dot" style="background:${col.both}"></span>Conserved (${both})</div><br>
+       <div class="k"><span class="dot" style="background:${col.a}"></span>Only in ${shortG(G.genome)} (${aonly})</div><br>
+       <div class="k"><span class="dot" style="background:${col.b}"></span>Only in ${shortG(cmpB.genome)} (${bonly})</div>
+       <div class="hint" style="margin-top:8px">Regulon of <b>${tfLabel}</b>, matched by gene symbol. Jaccard ${jac.toFixed(2)} (conserved / total). Genes with only a locus tag can't be matched across strains, so conservation is a lower bound. "TF→TF backbone" to exit.</div>`;
+    closeDrawer();
+  }
+
+  // ---------- hub-family heatmap ----------
+  const FAMPAL=['#38bdf8','#f5a524','#c084fc','#34d399','#f472b6','#facc15','#fb923c',
+    '#a3e635','#22d3ee','#e879f9','#fca5a5','#60a5fa','#fcd34d','#4ade80'];
+  const famColor=new Map();
+  function colorFor(fam){ if(!famColor.has(fam)) famColor.set(fam, FAMPAL[famColor.size%FAMPAL.length]); return famColor.get(fam); }
+  function openHeatmap(){
+    const rows=manifest.filter(m=>m.hubfam && m.hubfam.length);
+    const hm=document.getElementById('heatmap'), body=document.getElementById('hmBody');
+    const total=manifest.length, withfam=rows.length;
+    if(!withfam){
+      body.innerHTML=`<h2>Hub family heatmap</h2>
+        <div class="hmsub">No hub-family data yet. Families come from Pfam domains (InterProScan) run on each genome's proteome. Regenerate with <span class="mono">--pfam &lt;interproscan_dir&gt;</span>. Right now 0 of ${total} loaded genomes have Pfam data.</div>`;
+      hm.classList.add('open'); return;
+    }
+    famColor.clear();
+    const nCols=Math.max(...rows.map(m=>m.hubfam.length));
+    let html=`<h2>Hub families across organisms</h2>
+      <div class="hmsub">Each row is a genome; each column is a hub by rank (Hub 1 = most genes regulated). Cell color = TF family (Pfam) of that genome's rank-k hub. If a column is one color, the hub at that rank is the same family across organisms. Showing ${withfam} of ${total} genomes with Pfam data.</div>`;
+    html+='<table class="hm"><tr><th class="rowh">genome</th>';
+    for(let k=0;k<nCols;k++) html+=`<th>H${k+1}</th>`;
+    html+='</tr>';
+    rows.forEach(m=>{
+      html+=`<tr><th class="rowh" title="${m.id}">${m.id.replace(/_ASM.*|_AI.*/,'')}</th>`;
+      for(let k=0;k<nCols;k++){
+        const h=m.hubfam[k];
+        if(h && h[3]){ const c=colorFor(h[3]);
+          const src=h[5]==='lit'?'literature':(h[4]||'Pfam');
+          const bd=h[5]==='lit'?'border:1.5px dashed rgba(255,255,255,.55)':'';
+          html+=`<td style="background:${c};${bd}" title="${m.id} · Hub ${k+1}: ${h[0]} (${h[1]}) — ${h[3]} · ${src} · regulates ${h[2]}">${h[3].slice(0,3)}</td>`; }
+        else html+=`<td class="empty" title="hub ${h?h[0]:''}: no family">·</td>`;
+      }
+      html+='</tr>';
+    });
+    html+='</table>';
+    html+='<div class="hmlegend">'+[...famColor.entries()].map(([f,c])=>
+      `<span class="k"><span class="sw" style="background:${c}"></span>${f}</span>`).join('')+'</div>';
+    html+='<div class="hmsub" style="margin-top:10px">Solid cell = family from Pfam/InterProScan. Dashed border = family inferred from the gene symbol via a literature table (known <i>E. coli</i> TF classification); available only where the genome has gene symbols. Empty = hub without a gene symbol or a known family.</div>';
+    body.innerHTML=html;
+    hm.classList.add('open');
+  }
+  document.getElementById('openHeatmap').onclick=openHeatmap;
+  document.getElementById('hmClose').onclick=()=>document.getElementById('heatmap').classList.remove('open');
+
+  let manifest=[];
+  function renderGList(filter){
+    const q=(filter||'').toLowerCase();
+    const box=document.getElementById('glist');
+    const rows=manifest.filter(m=>m.id.toLowerCase().includes(q)).slice(0,300);
+    box.innerHTML=rows.map(m=>
+      `<div class="gi${m.id===curId?' on':''}" data-id="${m.id}">
+        <span class="mono">${m.id}${m.local?'<span class="lt">LOCAL</span>':''}</span><span class="e">${m.edges}</span></div>`).join('')
+      || `<div class="gi" style="cursor:default;color:var(--faint)">no matches</div>`;
+    box.querySelectorAll('.gi[data-id]').forEach(el=>el.onclick=async()=>{
+      document.getElementById('splash').style.display='flex';
+      document.getElementById('splash').textContent='Loading '+el.dataset.id+'…';
+      try{ showGenome(await loadGenome(el.dataset.id)); renderGList(document.getElementById('gfilter').value); }
+      catch(err){ document.getElementById('splash').textContent='Could not load '+el.dataset.id; }
+    });
+  }
+  document.getElementById('gfilter').addEventListener('input',e=>renderGList(e.target.value));
+  document.getElementById('cmpSel').addEventListener('change',async e=>{
+    const v=e.target.value, h=document.getElementById('cmpHint');
+    if(!v){ cmpB=null; h.textContent='Then open a TF (with a gene symbol) and click "Compare regulon".'; return; }
+    h.textContent='Loading '+v+'…';
+    try{ cmpB=prep(await loadGenome(v)); h.innerHTML='Comparing against <b>'+v+'</b>. Open a TF (with a gene symbol) and click "Compare regulon".'; }
+    catch(err){ cmpB=null; h.textContent='Could not load '+v; }
+  });
+
+  // ---------- local loading (File API + JSZip) ----------
+  const TU_SUFFIX = '_protein.faa_net_predictions_TU';
+  function accFromName(name){
+    const b = name.split('/').pop();
+    if(b.endsWith(TU_SUFFIX)) return b.slice(0, -TU_SUFFIX.length);
+    return b.replace(/\.(tsv|txt|json)$/i,'');
+  }
+  function parseTSV(text){
+    const outdeg=new Map(), indeg=new Map(), tfs=new Set(), order=[], idx=new Map(), edges=[];
+    const node=x=>{ let i=idx.get(x); if(i===undefined){ i=order.length; idx.set(x,i); order.push(x);} return i; };
+    for(const ln of text.split(/\r?\n/)){
+      if(!ln) continue;
+      const c=ln.split('\t'); if(c.length!==7) continue;
+      const tf=c[0], tg=c[1], n=c[4];
+      const si=node(tf), ti=node(tg); tfs.add(tf);
+      edges.push([si, ti, n==='NULL'?-1:parseInt(n,10)]);
+      if(tf!==tg){ outdeg.set(tf,(outdeg.get(tf)||0)+1); indeg.set(tg,(indeg.get(tg)||0)+1); }
+    }
+    if(!order.length) return null;
+    const tier=x=> tfs.has(x) ? ((indeg.get(x)||0)===0?0:1) : 2;
+    const nodes=order.map(x=>[x, tfs.has(x)?1:0, outdeg.get(x)||0, indeg.get(x)||0, tier(x)]);
+    return {n:nodes, e:edges, stats:{nodes:order.length, tfs:tfs.size,
+      targets:order.length-tfs.size, edges:edges.length}};
+  }
+  function addLocal(id, g){
+    if(!g || !g.n) return false;
+    g.genome=id; LOCAL.set(id, g);
+    const e={id, tfs:g.stats.tfs, targets:g.stats.targets, edges:g.stats.edges, local:true};
+    const at=manifest.findIndex(m=>m.id===id);
+    if(at>=0) manifest[at]=e; else manifest.push(e);
+    return true;
+  }
+  const SKIP=/\.(png|jpe?g|gif|pdf|md|sh|faa|html?)$/i;
+  const looksDerived=(name,text)=>/hubs_top20|coregulators|cascades/i.test(name)
+    || /^(cascade_type|TF)\t/.test(text) || /\b(out_degree|coregulation_score|partner_TF|cascade_gene_path)\b/.test(text.slice(0,200));
+  async function handleFiles(fileList){
+    const st=document.getElementById('lstatus');
+    const files=[...fileList]; let added=0, seen=0, derived=false, firstNew=null;
+    try{
+      for(const file of files){
+        const nm=file.name.toLowerCase();
+        if(nm.endsWith('.zip')){
+          if(!window.JSZip){ st.textContent='Could not load the decompressor (JSZip). Offline?'; return; }
+          st.textContent='Opening '+file.name+'…';
+          const zip=await JSZip.loadAsync(file);
+          const entries=Object.values(zip.files).filter(f=>!f.dir && !SKIP.test(f.name));
+          let i=0;
+          for(const ent of entries){
+            i++; seen++;
+            const text=await ent.async('string');
+            let g=null; const id=accFromName(ent.name);
+            if(ent.name.toLowerCase().endsWith('.json')){ try{g=JSON.parse(text);}catch(e){} }
+            else g=parseTSV(text);
+            if(addLocal(id,g)){ added++; firstNew=firstNew||id; }
+            else if(looksDerived(ent.name,text)) derived=true;
+            if(i%25===0 || i===entries.length) st.textContent=`Processing ${i}/${entries.length}… (+${added})`;
+          }
+        } else if(nm.endsWith('.json')){
+          seen++; let g=null; try{ g=JSON.parse(await file.text()); }catch(e){}
+          if(addLocal(accFromName(file.name), g)){ added++; firstNew=firstNew||accFromName(file.name); }
+        } else {
+          seen++; const id=accFromName(file.name); const text=await file.text();
+          if(addLocal(id, parseTSV(text))){ added++; firstNew=firstNew||id; }
+          else if(looksDerived(file.name,text)) derived=true;
+        }
+      }
+    }catch(err){ st.textContent='Processing error: '+err.message; return; }
+    manifest.sort((a,b)=>a.id.localeCompare(b.id));
+    renderGList(document.getElementById('gfilter').value);
+    if(added>0){
+      st.innerHTML=`<b style="color:#34d399">+${added}</b> genome(s) loaded this session.`;
+      if(firstNew) showGenome(await loadGenome(firstNew));
+    } else if(derived){
+      st.innerHTML='Nothing loaded: this contains the <b>derived analyses</b> '
+        +'(hubs / coregulators / cascades), not the network. Load the '
+        +'<span class="mono">*_net_predictions_TU</span> files from the <b>MergePlusTU</b> folder.';
+    } else {
+      st.innerHTML=`Checked ${seen} file(s) and none is a MergePlusTU network `
+        +'(7-column TSV, no header). Make sure it is the <b>MergePlusTU</b> folder.';
+    }
+  }
+  document.getElementById('lfile').addEventListener('change',e=>{ if(e.target.files.length) handleFiles(e.target.files); e.target.value=''; });
+
+  (async function init(){
+    try{
+      const man=await loadManifest(); manifest=man.genomes;
+      renderGList('');
+      document.getElementById('splash').textContent='Pick a genome in the left panel.';
+      if(manifest.length) { showGenome(await loadGenome(manifest[0].id)); renderGList(''); }
+    }catch(err){
+      document.getElementById('splash').innerHTML=
+        'Could not load the manifest.<br>If you opened the file directly, serve it with <code>python -m http.server</code>.';
+    }
+  })();
+})();
+</script>
+</body>
+</html>
